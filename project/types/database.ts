@@ -8,6 +8,7 @@ export type Json =
 
 export type OwnerType = 'personal' | 'bgi' | 'aurel' | 'onkoonnect';
 export type AccountType = 'cash' | 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card';
+export type AccountProvider = 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card' | 'cash' | 'other' | null;
 export type TransactionType = 'income' | 'expense';
 export type TransactionNatureType = 'income' | 'expense' | 'transfer' | 'savings' | 'investment' | 'debt' | 'repayment' | 'adjustment';
 export type DecisionReasonType = 'need' | 'investment' | 'opportunity' | 'pleasure' | 'urgency' | 'unforeseen' | 'training' | 'family' | 'business' | 'other';
@@ -44,6 +45,44 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           default_owner?: OwnerType;
+        };
+      };
+      accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          account_type: AccountType;
+          provider: AccountProvider;
+          currency: string;
+          description: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          account_type: AccountType;
+          provider?: AccountProvider;
+          currency?: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          account_type?: AccountType;
+          provider?: AccountProvider;
+          currency?: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
         };
       };
       transactions: {
@@ -551,6 +590,10 @@ export interface Database {
 
 // Export types
 export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type Account = Database['public']['Tables']['accounts']['Row'];
+export type AccountInsert = Database['public']['Tables']['accounts']['Insert'];
+export type AccountUpdate = Database['public']['Tables']['accounts']['Update'];
+
 export type TransactionDB = Database['public']['Tables']['transactions']['Row'];
 export type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
 export type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];

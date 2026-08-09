@@ -18,6 +18,10 @@ import type {
   AccountType,
 } from '@/types/database';
 import { formatCurrency } from './parserService';
+import {
+  calculateCentralizedNetWorth,
+  calculateInvestmentPerformance as calcInvestmentPerformance,
+} from './financialCalculator';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -303,6 +307,9 @@ export interface NetWorthData {
 }
 
 export async function calculateNetWorth(): Promise<NetWorthData> {
+  // Utiliser le calculateur centralisé (Cash + Actifs + Investissements - Passifs)
+  const centralized = await calculateCentralizedNetWorth();
+
   const [assetsRes, liabilitiesRes, savingsRes, investmentsRes] = await Promise.all([
     getAssets(),
     getLiabilities(),
@@ -315,17 +322,13 @@ export async function calculateNetWorth(): Promise<NetWorthData> {
   const savings = savingsRes.data || [];
   const investments = investmentsRes.data || [];
 
-  // Calculate totals
   const totalAssets = assets.reduce((sum, a) => sum + Number(a.value), 0);
   const totalLiabilities = liabilities.reduce((sum, l) => sum + Number(l.remaining_amount), 0);
   const savingsTotal = savings.reduce((sum, s) => sum + Number(s.amount), 0);
-  const investmentCapital = investments
-    .filter((i) => i.status === 'active')
-    .reduce((sum, i) => sum + Number(i.invested_amount), 0);
-  const investmentValue = investments
-    .filter((i) => i.status === 'active')
-    .reduce((sum, i) => sum + Number(i.current_value), 0);
+  const investmentCapital = centralized.investedCapital;
+  const investmentValue = centralized.investmentsValue;
   const investmentIncome = investments.reduce((sum, i) => sum + Number(i.generated_income), 0);
+  const netWorth = centralized.netWorth;
 
   // Group assets by type
   const assetsByTypeMap = new Map<string, number>();
@@ -364,7 +367,7 @@ export async function calculateNetWorth(): Promise<NetWorthData> {
   return {
     totalAssets,
     totalLiabilities,
-    netWorth: totalAssets - totalLiabilities,
+    netWorth,
     assetsByType,
     liabilitiesByType,
     savingsTotal,
@@ -414,10 +417,8 @@ export async function generateFinancialOpportunities(
 ): Promise<void> {
   const opportunities: FinancialOpportunityInsert[] = [];
 
-  // Check savings goals progress
   data.savingsGoals.forEach((goal) => {
     const progress = (Number(goal.current_amount) / Number(goal.target_amount)) * 100;
-
     if (progress >= 100) {
       opportunities.push({
         type: 'savings_achieved',
@@ -439,13 +440,12 @@ export async function generateFinancialOpportunities(
     }
   });
 
-  // Check discipline status
   if (data.disciplineStatus === 'conforme') {
     const availableToInvest = data.bgiIncome * 0.35 - data.personalExpenses;
     if (availableToInvest > 10000) {
       opportunities.push({
         type: 'investment_opportunity',
-        title: 'Opportunite d\'investissement',
+        title: "Opportunite d'investissement",
         message: `Tes depenses personnelles sont conformes. Tu peux investir ${formatCurrency(availableToInvest)} ce mois-ci.`,
         priority: 3,
         is_actionable: true,
@@ -471,7 +471,6 @@ export async function generateFinancialOpportunities(
     });
   }
 
-  // Check investment performance
   if (data.netWorth.investmentPerformance > 15) {
     opportunities.push({
       type: 'investment_performance',
@@ -482,7 +481,6 @@ export async function generateFinancialOpportunities(
     });
   }
 
-  // Check passive income
   if (data.passiveIncome > 0) {
     const passivePercentage = (data.passiveIncome / data.monthlyIncome) * 100;
     if (passivePercentage > 20) {
@@ -496,18 +494,16 @@ export async function generateFinancialOpportunities(
     }
   }
 
-  // Net worth growth
   if (data.netWorth.netWorth > 0) {
     opportunities.push({
       type: 'net_worth',
       title: 'Patrimoine positif',
-      message: `Ton patrimoine net s\'eleve a ${formatCurrency(data.netWorth.netWorth)}`,
+      message: `Ton patrimoine net s'eleve a ${formatCurrency(data.netWorth.netWorth)}`,
       priority: 5,
       is_actionable: false,
     });
   }
 
-  // Insert opportunities
   for (const opp of opportunities) {
     await (supabase as SupabaseClient)
       .from('financial_opportunities')
@@ -554,10 +550,10 @@ export function calculateKPIs(data: {
   return {
     savingsRate,
     investmentRate,
-    personalExpenseRatio: 0, // Calculated in dashboard
+    personalExpenseRatio: 0,
     netWorthToIncomeRatio,
     passiveIncome,
-    monthlyNetWorthChange: 0, // Requires historical data
+    monthlyNetWorthChange: 0,
     averageInvestmentReturn,
   };
 }

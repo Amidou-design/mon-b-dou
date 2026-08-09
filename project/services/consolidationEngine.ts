@@ -1,6 +1,13 @@
 import { supabase } from '@/lib/supabase';
-import type { OwnerType } from '@/types/database';
+import type { OwnerType, TransactionDB } from '@/types/database';
 import { formatCurrency } from './parserService';
+import {
+  calculateFinancialSummary,
+  calculateConsolidatedReport,
+  getEnterpriseIncome,
+  getPersonalExpenses,
+  ALL_OWNERS,
+} from './financialCalculator';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
@@ -20,7 +27,7 @@ export interface Organization {
 }
 
 export interface ConsolidatedData {
-  organizationId: string | null; // null = all organizations
+  organizationId: string | null;
   totalIncome: number;
   totalExpenses: number;
   balance: number;
@@ -94,21 +101,18 @@ export function ownerToOrganization(owner: OwnerType): string {
 }
 
 export async function getConsolidatedData(
-  organizationId: string | null // null = all
+  organizationId: string | null
 ): Promise<ConsolidatedData> {
-  // Get current month bounds
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-  // Fetch transactions
   let query = (supabase as SupabaseClient)
     .from('transactions')
     .select('*')
     .gte('date', startOfMonth.toISOString())
     .lte('date', endOfMonth.toISOString());
 
-  // If specific organization, filter by owner
   if (organizationId) {
     const { data: org } = await (supabase as SupabaseClient)
       .from('organizations')
@@ -130,7 +134,6 @@ export async function getConsolidatedData(
 
   const { data: transactions } = await query;
 
-  // Fetch savings, investments, assets, liabilities
   const [savingsRes, investmentsRes, assetsRes, liabilitiesRes] = await Promise.all([
     (supabase as SupabaseClient).from('savings_transfers').select('amount, owner'),
     (supabase as SupabaseClient).from('investments').select('invested_amount, current_value, owner'),
@@ -138,51 +141,36 @@ export async function getConsolidatedData(
     (supabase as SupabaseClient).from('liabilities').select('remaining_amount, owner'),
   ]);
 
-  const txs = transactions || [];
+  const txs = (transactions || []) as TransactionDB[];
   const savings = savingsRes.data || [];
   const investments = investmentsRes.data || [];
   const assets = assetsRes.data || [];
   const liabilities = liabilitiesRes.data || [];
 
-  // Calculate totals
-  let totalIncome = 0;
-  let totalExpenses = 0;
-  let transferAdjustment = 0;
+  // Use centralized financial calculator
+  const summary = calculateFinancialSummary(txs);
 
-  txs.forEach((t: any) => {
-    if (t.transaction_nature === 'transfer') {
-      // Transfers between accounts/orgs should not be double-counted
-      transferAdjustment += Number(t.amount);
-    } else if (t.type === 'income') {
-      totalIncome += Number(t.amount);
-    } else {
-      totalExpenses += Number(t.amount);
-    }
-  });
-
-  // Calculate savings (exclude internal transfers in consolidation mode)
   const savingsTotal = savings.reduce((sum: number, s: any) => sum + Number(s.amount), 0);
 
-  // Calculate investments
   const investmentCapital = investments.reduce((sum: number, i: any) => sum + Number(i.invested_amount), 0);
   const investmentValue = investments.reduce((sum: number, i: any) => sum + Number(i.current_value), 0);
 
-  // Calculate net worth
-  const totalAssets = assets.reduce((sum: number, a: any) => sum + Number(a.value), 0);
-  const totalLiabilities = liabilities.reduce((sum: number, l: any) => sum + Number(l.remaining_amount), 0);
-  const netWorth = totalAssets - totalLiabilities;
+  const totalAssetsVal = assets.reduce((sum: number, a: any) => sum + Number(a.value), 0);
+  const totalLiabilitiesVal = liabilities.reduce((sum: number, l: any) => sum + Number(l.remaining_amount), 0);
+  const cashTotal = summary.accountBalances.reduce((sum, ab) => sum + ab.balance, 0);
+  const netWorth = cashTotal + totalAssetsVal + investmentValue - totalLiabilitiesVal;
 
   return {
     organizationId,
-    totalIncome,
-    totalExpenses,
-    balance: totalIncome - totalExpenses,
+    totalIncome: summary.totalIncome,
+    totalExpenses: summary.totalExpenses,
+    balance: summary.netCashFlow,
     savingsTotal,
     investmentCapital,
     investmentValue,
     netWorth,
     transactionCount: txs.length,
-    transferAdjustment,
+    transferAdjustment: summary.transferAdjustment,
   };
 }
 
@@ -194,17 +182,6 @@ export async function getOrganizationStats(): Promise<{
   const { data: orgs } = await getOrganizations();
   const organizations = orgs || [];
 
-  // Get consolidated data for each organization
-  const stats: ConsolidatedData[] = [];
-  let totalIncome = 0;
-  let totalExpenses = 0;
-  let totalBalance = 0;
-  let totalSavings = 0;
-  let totalInvestmentCapital = 0;
-  let totalInvestmentValue = 0;
-
-  // Note: We need to get data per organization
-  // For now, group by owner field
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -215,35 +192,35 @@ export async function getOrganizationStats(): Promise<{
     .gte('date', startOfMonth.toISOString())
     .lte('date', endOfMonth.toISOString());
 
-  if (transactions) {
-    const incomeByOwner: Record<string, number> = {};
-    const expenseByOwner: Record<string, number> = {};
+  const txs = (transactions || []) as TransactionDB[];
 
-    transactions.forEach((t: any) => {
-      if (t.type === 'income') {
-        incomeByOwner[t.owner] = (incomeByOwner[t.owner] || 0) + Number(t.amount);
-      } else if (t.type === 'expense') {
-        expenseByOwner[t.owner] = (expenseByOwner[t.owner] || 0) + Number(t.amount);
-      }
-    });
+  // Use centralized calculator for all spaces
+  const report = calculateConsolidatedReport(txs);
 
-    for (const [owner, income] of Object.entries(incomeByOwner)) {
-      const expenses = expenseByOwner[owner] || 0;
+  const stats: ConsolidatedData[] = [];
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  let totalSavings = 0;
+  let totalInvestmentCapital = 0;
+  let totalInvestmentValue = 0;
+
+  for (const owner of ALL_OWNERS) {
+    const data = report.bySpace[owner];
+    if (data.transactionCount > 0) {
       stats.push({
         organizationId: owner,
-        totalIncome: income,
-        totalExpenses: expenses,
-        balance: income - expenses,
+        totalIncome: data.totalIncome,
+        totalExpenses: data.totalExpenses,
+        balance: data.netCashFlow,
         savingsTotal: 0,
         investmentCapital: 0,
         investmentValue: 0,
         netWorth: 0,
-        transactionCount: 0,
+        transactionCount: data.transactionCount,
         transferAdjustment: 0,
       });
-      totalIncome += income;
-      totalExpenses += expenses;
-      totalBalance += income - expenses;
+      totalIncome += data.totalIncome;
+      totalExpenses += data.totalExpenses;
     }
   }
 
@@ -263,15 +240,15 @@ export async function getOrganizationStats(): Promise<{
 
   const total: ConsolidatedData = {
     organizationId: null,
-    totalIncome,
-    totalExpenses,
-    balance: totalBalance,
+    totalIncome: report.global.totalIncome,
+    totalExpenses: report.global.totalExpenses,
+    balance: report.global.netCashFlow,
     savingsTotal: totalSavings,
     investmentCapital: totalInvestmentCapital,
     investmentValue: totalInvestmentValue,
     netWorth: 0,
-    transactionCount: transactions?.length || 0,
-    transferAdjustment: 0,
+    transactionCount: txs.length,
+    transferAdjustment: report.global.transferAdjustment,
   };
 
   return { organizations, stats, total };
