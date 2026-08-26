@@ -1,0 +1,30 @@
+# =============================================
+# MON BÉDOU — Ignorer les fichiers sensibles/localisés
+# =============================================
+
+# Dépendances
+node_modules/
+
+# Fichiers d'environnement (NE JAMAIS commiter ses secrets)
+.env
+.env.*
+!.env.example
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / éditeur
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Metro / Expo (concerné par project/.gitignore mais conservé ici pour sécurité)
+.expo/

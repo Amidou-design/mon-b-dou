@@ -1,11 +1,28 @@
-import { TransactionInsert } from '@/types/database';
+import type { TransactionInsert } from '@/types/database';
+import {
+  ACCOUNT_CONFIG,
+  ACCOUNT_KEYS,
+  ACCOUNTS,
+  type AccountKey,
+  type AccountType,
+} from '@/types/accounts';
+
+export {
+  ACCOUNT_CONFIG,
+  ACCOUNT_KEYS,
+  ACCOUNT_PROVIDER_CONFIG,
+  ACCOUNT_TYPE_LABELS,
+  ACCOUNTS,
+  type AccountKey,
+  type AccountType,
+} from '@/types/accounts';
 
 export interface ParsedTransaction {
   amount: number;
   type: 'income' | 'expense';
   category: string;
   description: string;
-  account: 'cash' | 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card';
+  account: AccountType;
   owner: 'personal' | 'bgi' | 'aurel' | 'onkoonnect';
   confidence: number; // 0-100, confidence level of categorization
 }
@@ -70,7 +87,7 @@ const INCOME_KEYWORDS = [
   'client', 'facture', 'reglement', 'encaissement',
 ];
 
-const ACCOUNT_KEYWORDS: Record<string, 'cash' | 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card'> = {
+const ACCOUNT_KEYWORDS: Record<string, AccountType> = {
   wave: 'wave',
   'wave money': 'wave',
   orange: 'orange_money',
@@ -92,6 +109,14 @@ const ACCOUNT_KEYWORDS: Record<string, 'cash' | 'wave' | 'orange_money' | 'moov_
   cb: 'card',
   visa: 'card',
   mastercard: 'card',
+  epargne: 'savings',
+  'livret': 'savings',
+  investissement: 'investment',
+  'mobile money': 'mobile_money',
+  'money mobile': 'mobile_money',
+  mobile: 'mobile_money',
+  other: 'other',
+  autre: 'other',
 };
 
 const OWNER_KEYWORDS: Record<string, 'personal' | 'bgi' | 'aurel' | 'onkoonnect'> = {
@@ -136,18 +161,6 @@ export const CATEGORIES: Record<CategoryKey, { label: string; icon: string; colo
   telephone: { label: 'Telephone', icon: 'Phone', color: '#14B8A6' },
   factures: { label: 'Factures', icon: 'Receipt', color: '#F97316' },
   autres: { label: 'Autres', icon: 'MoreHorizontal', color: '#6B7280' },
-};
-
-export const ACCOUNT_KEYS = ['cash', 'wave', 'orange_money', 'moov_money', 'bank', 'card'] as const;
-export type AccountKey = (typeof ACCOUNT_KEYS)[number];
-
-export const ACCOUNTS: Record<AccountKey, { label: string; color: string }> = {
-  cash: { label: 'Especes', color: '#22C55E' },
-  wave: { label: 'Wave', color: '#1B4DFF' },
-  orange_money: { label: 'Orange Money', color: '#FF6600' },
-  moov_money: { label: 'Moov Money', color: '#00A3E0' },
-  bank: { label: 'Banque', color: '#6366F1' },
-  card: { label: 'Carte bancaire', color: '#EC4899' },
 };
 
 export const OWNER_KEYS = ['personal', 'bgi', 'aurel', 'onkoonnect'] as const;
@@ -219,7 +232,7 @@ export function parseTransaction(input: string): ParsedTransaction | null {
   }
 
   // Determine account
-  let account: 'cash' | 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card' = 'cash';
+  let account: AccountType = 'cash';
   let accountConfidence = 100;
   for (const [keyword, acc] of Object.entries(ACCOUNT_KEYWORDS)) {
     if (text.includes(keyword)) {
@@ -318,7 +331,7 @@ export function getCategoryInfo(category: string) {
 }
 
 export function getAccountInfo(account: string) {
-  return ACCOUNTS[account as AccountKey] || ACCOUNTS.cash;
+  return ACCOUNTS[account as AccountKey] || ACCOUNT_CONFIG.cash;
 }
 
 export function getOwnerInfo(owner: string) {

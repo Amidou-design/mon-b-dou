@@ -23,11 +23,10 @@ import {
   getOwnerInfo,
   CATEGORIES,
   CATEGORY_KEYS,
-  ACCOUNTS,
-  ACCOUNT_KEYS,
   OWNERS,
   OWNER_KEYS,
 } from '@/services/parserService';
+import { ACCOUNT_CONFIG as ACCOUNTS, ACCOUNT_KEYS } from '@/types/accounts';
 import type { ParsedTransaction } from '@/services/parserService';
 import { addTransaction } from '@/services/transactionService';
 import {

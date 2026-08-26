@@ -1,3 +1,7 @@
+import type { AccountProvider, AccountType } from './accounts';
+
+export type { AccountProvider, AccountType } from './accounts';
+
 export type Json =
   | string
   | number
@@ -7,8 +11,6 @@ export type Json =
   | Json[];
 
 export type OwnerType = 'personal' | 'bgi' | 'aurel' | 'onkoonnect';
-export type AccountType = 'cash' | 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card';
-export type AccountProvider = 'wave' | 'orange_money' | 'moov_money' | 'bank' | 'card' | 'cash' | 'other' | null;
 export type TransactionType = 'income' | 'expense';
 export type TransactionNatureType = 'income' | 'expense' | 'transfer' | 'savings' | 'investment' | 'debt' | 'repayment' | 'adjustment';
 export type DecisionReasonType = 'need' | 'investment' | 'opportunity' | 'pleasure' | 'urgency' | 'unforeseen' | 'training' | 'family' | 'business' | 'other';

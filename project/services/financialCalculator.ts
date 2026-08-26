@@ -14,10 +14,11 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { ACCOUNT_CONFIG } from '@/types/accounts';
+import type { AccountType } from '@/types/accounts';
 import type {
   TransactionDB,
   OwnerType,
-  AccountType,
   SavingsGoal,
   SavingsTransfer,
   Investment,
@@ -101,15 +102,6 @@ export interface ConsolidatedReport {
 // ============================================
 // CONSTANTES
 // ============================================
-
-const ACCOUNT_CONFIG: Record<AccountType, { label: string; color: string }> = {
-  cash: { label: 'Espèces', color: '#22C55E' },
-  wave: { label: 'Wave', color: '#1B4DFF' },
-  orange_money: { label: 'Orange Money', color: '#FF6600' },
-  moov_money: { label: 'Moov Money', color: '#00A3E0' },
-  bank: { label: 'Banque', color: '#6366F1' },
-  card: { label: 'Carte bancaire', color: '#EC4899' },
-};
 
 export const ALL_OWNERS: OwnerType[] = ['personal', 'bgi', 'aurel', 'onkoonnect'];
 

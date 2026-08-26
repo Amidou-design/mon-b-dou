@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import type { AccountType } from '@/types/accounts';
 import type {
   Account,
   AccountInsert,
@@ -8,22 +9,6 @@ import type {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
-
-// ============================================
-// ACCOUNT TYPE — aligné sur la migration 006
-// (CHECK constraint de la table accounts)
-// ============================================
-export type AccountTypeV1 =
-  | 'cash'
-  | 'wave'
-  | 'orange_money'
-  | 'moov_money'
-  | 'bank'
-  | 'card'
-  | 'savings'
-  | 'investment'
-  | 'mobile_money'
-  | 'other';
 
 async function getCurrentUserId(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -151,7 +136,7 @@ export async function deactivateAccount(id: string): Promise<{ data: Account | n
 // Filtrer par type de compte.
 // ============================================
 export async function getAccountsByType(
-  account_type: AccountTypeV1
+  account_type: AccountType
 ): Promise<{ data: Account[] | null; error: string | null }> {
   const { data, error } = await (supabase as SupabaseClient)
     .from('accounts')

@@ -20,7 +20,8 @@ import {
 } from '@/services/wealthService';
 import type { SavingsGoal, SavingsTransfer } from '@/types/database';
 import type { OwnerKey } from '@/services/parserService';
-import { OWNERS, OWNER_KEYS, ACCOUNTS, ACCOUNT_KEYS } from '@/services/parserService';
+import { OWNERS, OWNER_KEYS } from '@/services/parserService';
+import { ACCOUNT_CONFIG as ACCOUNTS, ACCOUNT_KEYS } from '@/types/accounts';
 import {
   PiggyBank,
   Plus,
