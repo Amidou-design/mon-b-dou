@@ -14,6 +14,7 @@ export interface Transaction {
   category: string;
   description: string;
   account: AccountType;
+  account_id: string | null;
   owner: OwnerType;
   transaction_nature: TransactionNatureType;
   decision_reason: DecisionReasonType | null;
@@ -31,6 +32,7 @@ export interface TransactionInsert {
   category: string;
   description: string;
   account?: AccountType;
+  account_id?: string | null;
   owner?: OwnerType;
   transaction_nature?: TransactionNatureType;
   decision_reason?: DecisionReasonType | null;
@@ -46,6 +48,7 @@ export interface TransactionUpdate {
   category?: string;
   description?: string;
   account?: AccountType;
+  account_id?: string | null;
   owner?: OwnerType;
   date?: string;
 }
@@ -61,9 +64,35 @@ export async function addTransaction(
     return { data: null, error: 'Tu dois etre connecte pour enregistrer une transaction' };
   }
 
+  let transactionToInsert = {
+    ...transaction,
+    account_id: transaction.account_id ?? null,
+  };
+
+  if (transaction.account_id) {
+    const { data: account, error: accountError } = await (supabase as SupabaseClient)
+      .from('accounts')
+      .select('account_type')
+      .eq('id', transaction.account_id)
+      .maybeSingle();
+
+    if (accountError) {
+      return { data: null, error: accountError.message };
+    }
+
+    if (!account) {
+      return { data: null, error: 'Le compte sélectionné est introuvable' };
+    }
+
+    transactionToInsert = {
+      ...transactionToInsert,
+      account: account.account_type as AccountType,
+    };
+  }
+
   const { data, error } = await (supabase as SupabaseClient)
     .from('transactions')
-    .insert([{ ...transaction, user_id: userId }])
+    .insert([{ ...transactionToInsert, user_id: userId }])
     .select()
     .maybeSingle();
 

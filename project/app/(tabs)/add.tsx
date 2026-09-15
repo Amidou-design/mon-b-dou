@@ -29,6 +29,8 @@ import {
 import { ACCOUNT_CONFIG as ACCOUNTS, ACCOUNT_KEYS } from '@/types/accounts';
 import type { ParsedTransaction } from '@/services/parserService';
 import { addTransaction } from '@/services/transactionService';
+import { getActiveAccounts } from '@/services/accountService';
+import type { Account } from '@/types/database';
 import {
   ArrowRight,
   Sparkles,
@@ -63,6 +65,9 @@ export default function AddTransactionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [editedParsed, setEditedParsed] = useState<ParsedTransaction | null>(null);
+  const [realAccounts, setRealAccounts] = useState<Account[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -78,6 +83,28 @@ export default function AddTransactionScreen() {
       easing: Easing.ease,
       useNativeDriver: true,
     }).start();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAccounts = async () => {
+      const result = await getActiveAccounts();
+      if (!isMounted) return;
+
+      if (result.error) {
+        setAccountsError(result.error);
+      } else {
+        setRealAccounts(result.data || []);
+      }
+      setAccountsLoading(false);
+    };
+
+    loadAccounts();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -145,6 +172,84 @@ export default function AddTransactionScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
+
+  const selectAccount = (
+    transaction: ParsedTransaction,
+    accountId: string | null
+  ): ParsedTransaction => {
+    const selectedAccount = realAccounts.find((account) => account.id === accountId);
+
+    return {
+      ...transaction,
+      account_id: selectedAccount?.id ?? null,
+      account: selectedAccount?.account_type ?? transaction.account,
+    };
+  };
+
+  const renderAccountSelector = (
+    transaction: ParsedTransaction,
+    onSelect: (transaction: ParsedTransaction) => void
+  ) => (
+    <View style={styles.accountSelectorContainer}>
+      <Text style={styles.selectorLabel}>Compte utilisé:</Text>
+      {accountsLoading && <Text style={styles.accountStatusText}>Chargement des comptes...</Text>}
+      {accountsError && <Text style={styles.accountStatusError}>{accountsError}</Text>}
+      {!accountsLoading && realAccounts.length > 0 && (
+        <View style={styles.confirmOptions}>
+          {realAccounts.map((account) => (
+            <TouchableOpacity
+              key={account.id}
+              style={[
+                styles.confirmOptionSmall,
+                transaction.account_id === account.id && {
+                  backgroundColor: ACCOUNTS[account.account_type].color + '20',
+                  borderColor: ACCOUNTS[account.account_type].color,
+                },
+              ]}
+              onPress={() => onSelect(selectAccount(transaction, account.id))}
+            >
+              <Text
+                style={[
+                  styles.confirmOptionSmallText,
+                  transaction.account_id === account.id && {
+                    color: ACCOUNTS[account.account_type].color,
+                  },
+                ]}
+              >
+                {account.name}
+              </Text>
+              <Text style={styles.accountTypeText}>{ACCOUNTS[account.account_type].label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      <Text style={styles.accountFallbackLabel}>Fallback legacy</Text>
+      <View style={styles.confirmOptions}>
+        {ACCOUNT_KEYS.map((key) => (
+          <TouchableOpacity
+            key={key}
+            style={[
+              styles.confirmOptionSmall,
+              !transaction.account_id && transaction.account === key && {
+                backgroundColor: ACCOUNTS[key].color + '20',
+                borderColor: ACCOUNTS[key].color,
+              },
+            ]}
+            onPress={() => onSelect({ ...transaction, account_id: null, account: key })}
+          >
+            <Text
+              style={[
+                styles.confirmOptionSmallText,
+                !transaction.account_id && transaction.account === key && { color: ACCOUNTS[key].color },
+              ]}
+            >
+              {ACCOUNTS[key].label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
 
   if (success) {
     return (
@@ -297,7 +402,7 @@ export default function AddTransactionScreen() {
                 <View style={styles.accountBadge}>
                   <Wallet size={12} color={getAccountInfo(parsed.account).color} />
                   <Text style={styles.accountText}>
-                    {getAccountInfo(parsed.account).label}
+                    {realAccounts.find((account) => account.id === parsed.account_id)?.name || getAccountInfo(parsed.account).label}
                   </Text>
                 </View>
               </View>
@@ -323,6 +428,7 @@ export default function AddTransactionScreen() {
                 </View>
               )}
             </View>
+              {renderAccountSelector(parsed, setParsed)}
           </Animated.View>
         )}
 
@@ -446,39 +552,7 @@ export default function AddTransactionScreen() {
               </View>
 
               <View style={styles.confirmSection}>
-                <Text style={styles.confirmLabel}>Compte utilisé</Text>
-                <View style={styles.confirmOptions}>
-                  {ACCOUNT_KEYS.slice(0, 3).map((key) => (
-                    <TouchableOpacity
-                      key={key}
-                      style={[
-                        styles.confirmOptionSmall,
-                        editedParsed.account === key && { backgroundColor: ACCOUNTS[key].color + '20', borderColor: ACCOUNTS[key].color },
-                      ]}
-                      onPress={() => setEditedParsed({ ...editedParsed, account: key })}
-                    >
-                      <Text style={[styles.confirmOptionSmallText, editedParsed.account === key && { color: ACCOUNTS[key].color }]}>
-                        {ACCOUNTS[key].label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.confirmOptions}>
-                  {ACCOUNT_KEYS.slice(3).map((key) => (
-                    <TouchableOpacity
-                      key={key}
-                      style={[
-                        styles.confirmOptionSmall,
-                        editedParsed.account === key && { backgroundColor: ACCOUNTS[key].color + '20', borderColor: ACCOUNTS[key].color },
-                      ]}
-                      onPress={() => setEditedParsed({ ...editedParsed, account: key })}
-                    >
-                      <Text style={[styles.confirmOptionSmallText, editedParsed.account === key && { color: ACCOUNTS[key].color }]}>
-                        {ACCOUNTS[key].label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {renderAccountSelector(editedParsed, setEditedParsed)}
               </View>
 
               {renderOwnerSelector(editedParsed.owner, (owner) =>
@@ -672,6 +746,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: '#374151',
+  },
+  accountSelectorContainer: {
+    marginTop: 8,
+    gap: 8,
+  },
+  accountStatusText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  accountStatusError: {
+    fontSize: 13,
+    color: '#DC2626',
+  },
+  accountTypeText: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  accountFallbackLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
   },
   ownerBadge: {
     flexDirection: 'row',

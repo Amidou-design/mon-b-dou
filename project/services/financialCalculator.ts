@@ -237,6 +237,38 @@ export function calculateAccountBalances(
     .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
 }
 
+export function calculateAccountBalanceForAccount(
+  transactions: TransactionDB[],
+  accountId: string,
+  legacyAccountType?: AccountType | null
+): number {
+  let balance = 0;
+
+  for (const transaction of transactions) {
+    const matchesAccountId = transaction.account_id === accountId;
+    const matchesLegacyAccount = !transaction.account_id && legacyAccountType && transaction.account === legacyAccountType;
+
+    if (!matchesAccountId && !matchesLegacyAccount) {
+      continue;
+    }
+
+    const amount = Number(transaction.amount) || 0;
+
+    if (transaction.transaction_nature === 'transfer') {
+      balance -= amount;
+      continue;
+    }
+
+    if (transaction.type === 'income') {
+      balance += amount;
+    } else {
+      balance -= amount;
+    }
+  }
+
+  return balance;
+}
+
 /**
  * Calcule le résumé financier global.
  * @param transactions Transactions à analyser

@@ -96,6 +96,7 @@ export interface Database {
           category: string;
           description: string;
           account: AccountType;
+          account_id: string | null;
           owner: OwnerType;
           transaction_nature: TransactionNatureType;
           decision_reason: DecisionReasonType | null;
@@ -114,6 +115,7 @@ export interface Database {
           category: string;
           description: string;
           account?: AccountType;
+          account_id?: string | null;
           owner?: OwnerType;
           transaction_nature?: TransactionNatureType;
           decision_reason?: DecisionReasonType | null;
@@ -132,6 +134,7 @@ export interface Database {
           category?: string;
           description?: string;
           account?: AccountType;
+          account_id?: string | null;
           owner?: OwnerType;
           transaction_nature?: TransactionNatureType;
           decision_reason?: DecisionReasonType | null;

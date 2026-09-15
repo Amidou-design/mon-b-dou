@@ -1,10 +1,12 @@
 import { supabase } from '@/lib/supabase';
+import { calculateAccountBalanceForAccount } from '@/services/financialCalculator';
 import type { AccountType } from '@/types/accounts';
 import type {
   Account,
   AccountInsert,
   AccountUpdate,
   AccountProvider,
+  TransactionDB,
 } from '@/types/database';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,11 +154,10 @@ export async function getAccountsByType(
 // 8. GET ACCOUNT BALANCE
 //
 // IMPORTANT — V1 (structure préparatoire) :
-// Le champ transactions.account_id n'existe PAS encore dans la table
-// transactions. Le calcul réel du solde ne peut donc pas être effectué.
+// Le champ transactions.account_id existe désormais, mais le calcul réel
+// du solde n'est pas encore connecté à ce service.
 //
-// On retourne un placeholder propre indiquant que le calcul réel sera
-// connecté après la migration transaction.account_id.
+// On retourne donc encore un placeholder propre pour cette étape.
 // ============================================
 
 export interface AccountBalance {
@@ -168,22 +169,29 @@ export interface AccountBalance {
 }
 
 export async function getAccountBalance(accountId: string): Promise<{ data: AccountBalance | null; error: string | null }> {
-  // Récupérer le compte pour connaître sa devise
   const { data: account } = await getAccountById(accountId);
   if (!account) {
     return { data: null, error: 'Compte introuvable' };
   }
 
+  const { data: transactions, error: transactionError } = await (supabase as SupabaseClient)
+    .from('transactions')
+    .select('*');
+
+  if (transactionError) {
+    return { data: null, error: transactionError.message };
+  }
+
+  const txList = (transactions || []) as TransactionDB[];
+  const balance = calculateAccountBalanceForAccount(txList, accountId, account.account_type as AccountType);
+
   return {
     data: {
       accountId,
-      balance: 0,
+      balance,
       currency: account.currency || 'XOF',
-      isPlaceholder: true,
-      message:
-        'Calcul du solde non disponible en V1 : le champ transactions.account_id ' +
-        'n\'existe pas encore. Le solde réel sera connecté après la migration ' +
-        'transaction.account_id.',
+      isPlaceholder: false,
+      message: 'Solde réel calculé à partir des transactions liées au compte.',
     },
     error: null,
   };

@@ -23,6 +23,7 @@ export interface ParsedTransaction {
   category: string;
   description: string;
   account: AccountType;
+  account_id: string | null;
   owner: 'personal' | 'bgi' | 'aurel' | 'onkoonnect';
   confidence: number; // 0-100, confidence level of categorization
 }
@@ -275,6 +276,7 @@ export function parseTransaction(input: string): ParsedTransaction | null {
     category,
     description,
     account,
+    account_id: null,
     owner,
     confidence: overallConfidence,
   };
@@ -289,6 +291,7 @@ export function createTransactionFromParsed(
     category: parsed.category,
     description: parsed.description,
     account: parsed.account,
+    account_id: parsed.account_id,
     owner: parsed.owner,
     transaction_nature: parsed.type,
     date: new Date().toISOString(),
