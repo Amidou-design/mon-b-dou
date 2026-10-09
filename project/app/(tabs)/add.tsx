@@ -12,7 +12,6 @@ import {
   Easing,
   Modal,
 } from 'react-native';
-import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   parseTransaction,
@@ -71,6 +70,7 @@ export default function AddTransactionScreen() {
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -83,21 +83,52 @@ export default function AddTransactionScreen() {
       easing: Easing.ease,
       useNativeDriver: true,
     }).start();
+
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadAccounts = async () => {
-      const result = await getActiveAccounts();
-      if (!isMounted) return;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
 
-      if (result.error) {
-        setAccountsError(result.error);
-      } else {
-        setRealAccounts(result.data || []);
+      try {
+        const result = await Promise.race([
+          getActiveAccounts(),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(
+              () => reject(new Error('Le chargement des comptes a expiré. Réessaie.')),
+              15000
+            );
+          }),
+        ]);
+
+        if (!isMounted) return;
+        if (result.error) {
+          setAccountsError(result.error);
+          setRealAccounts([]);
+        } else {
+          setRealAccounts(result.data || []);
+          setAccountsError(null);
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          setAccountsError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Impossible de charger les comptes. Réessaie.'
+          );
+          setRealAccounts([]);
+        }
+      } finally {
+        if (timeout) clearTimeout(timeout);
+        if (isMounted) setAccountsLoading(false);
       }
-      setAccountsLoading(false);
     };
 
     loadAccounts();
@@ -129,41 +160,59 @@ export default function AddTransactionScreen() {
     setLoading(true);
     setError(null);
 
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    try {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
 
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
 
-    const transaction = createTransactionFromParsed(dataToSave);
-    const result = await addTransaction(transaction);
+      const transaction = createTransactionFromParsed(dataToSave);
+      const result = await addTransaction(transaction);
 
-    if (result.error) {
-      setError(result.error);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      if (!result.data) {
+        setError('La transaction n’a pas été confirmée par le serveur. Réessaie.');
+        return;
+      }
+
+      setSuccess(true);
+      setShowConfirmModal(false);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      successTimeoutRef.current = setTimeout(() => {
+        setInput('');
+        setParsed(null);
+        setEditedParsed(null);
+        setError(null);
+        setSuccess(false);
+        inputRef.current?.focus();
+      }, 1200);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Impossible d’enregistrer la transaction. Réessaie.'
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSuccess(true);
-    setShowConfirmModal(false);
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-
-    setTimeout(() => {
-      router.back();
-    }, 1200);
   };
 
   const handleSuggestionPress = (suggestion: string) => {
@@ -428,6 +477,17 @@ export default function AddTransactionScreen() {
                 </View>
               )}
             </View>
+            <TouchableOpacity
+              style={styles.editDetailsButton}
+              onPress={() => {
+                setEditedParsed({ ...parsed });
+                setShowConfirmModal(true);
+              }}
+            >
+              <Text style={styles.editDetailsButtonText}>
+                Modifier type, catégorie, compte ou espace
+              </Text>
+            </TouchableOpacity>
               {renderAccountSelector(parsed, setParsed)}
           </Animated.View>
         )}
@@ -557,6 +617,13 @@ export default function AddTransactionScreen() {
 
               {renderOwnerSelector(editedParsed.owner, (owner) =>
                 setEditedParsed({ ...editedParsed, owner })
+              )}
+
+              {error && (
+                <View style={styles.errorContainer}>
+                  <AlertCircle size={16} color="#DC2626" />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
               )}
 
               <TouchableOpacity
@@ -768,6 +835,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 4,
+  },
+  editDetailsButton: {
+    alignSelf: 'flex-start',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+  },
+  editDetailsButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#059669',
   },
   ownerBadge: {
     flexDirection: 'row',
