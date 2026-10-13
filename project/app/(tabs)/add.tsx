@@ -17,9 +17,7 @@ import {
   parseTransaction,
   createTransactionFromParsed,
   formatCurrency,
-  getCategoryInfo,
   getAccountInfo,
-  getOwnerInfo,
   CATEGORIES,
   CATEGORY_KEYS,
   OWNERS,
@@ -235,6 +233,10 @@ export default function AddTransactionScreen() {
     };
   };
 
+  const updateParsed = (updates: Partial<ParsedTransaction>) => {
+    setParsed((current) => current ? { ...current, ...updates } : current);
+  };
+
   const renderAccountSelector = (
     transaction: ParsedTransaction,
     onSelect: (transaction: ParsedTransaction) => void
@@ -293,6 +295,69 @@ export default function AddTransactionScreen() {
               ]}
             >
               {ACCOUNTS[key].label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderTypeSelector = (
+    selectedType: ParsedTransaction['type'],
+    onSelect: (type: ParsedTransaction['type']) => void
+  ) => (
+    <View style={styles.confirmSection}>
+      <Text style={styles.confirmLabel}>Type</Text>
+      <View style={styles.confirmOptions}>
+        {(['expense', 'income'] as const).map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[
+              styles.confirmOption,
+              selectedType === type && styles.confirmOptionActive,
+            ]}
+            onPress={() => onSelect(type)}
+          >
+            <Text
+              style={[
+                styles.confirmOptionText,
+                selectedType === type && styles.confirmOptionTextActive,
+              ]}
+            >
+              {type === 'expense' ? 'Dépense' : 'Revenu'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderCategorySelector = (
+    selectedCategory: string,
+    onSelect: (category: typeof CATEGORY_KEYS[number]) => void
+  ) => (
+    <View style={styles.confirmSection}>
+      <Text style={styles.confirmLabel}>Catégorie</Text>
+      <View style={styles.confirmOptions}>
+        {CATEGORY_KEYS.map((key) => (
+          <TouchableOpacity
+            key={key}
+            style={[
+              styles.confirmOptionSmall,
+              selectedCategory === key && {
+                backgroundColor: CATEGORIES[key].color + '20',
+                borderColor: CATEGORIES[key].color,
+              },
+            ]}
+            onPress={() => onSelect(key)}
+          >
+            <Text
+              style={[
+                styles.confirmOptionSmallText,
+                selectedCategory === key && { color: CATEGORIES[key].color },
+              ]}
+            >
+              {CATEGORIES[key].label}
             </Text>
           </TouchableOpacity>
         ))}
@@ -412,39 +477,10 @@ export default function AddTransactionScreen() {
                 </Text>
               </View>
 
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Type</Text>
-                <View
-                  style={[
-                    styles.typeBadge,
-                    { backgroundColor: parsed.type === 'income' ? '#D1FAE5' : '#FEE2E2' },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.typeText,
-                      { color: parsed.type === 'income' ? '#059669' : '#DC2626' },
-                    ]}
-                  >
-                    {parsed.type === 'income' ? 'Revenu' : 'Dépense'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Catégorie</Text>
-                <View style={styles.categoryBadge}>
-                  <View
-                    style={[
-                      styles.categoryDot,
-                      { backgroundColor: getCategoryInfo(parsed.category).color },
-                    ]}
-                  />
-                  <Text style={styles.categoryText}>
-                    {getCategoryInfo(parsed.category).label}
-                  </Text>
-                </View>
-              </View>
+              {renderTypeSelector(parsed.type, (type) => updateParsed({ type }))}
+              {renderCategorySelector(parsed.category, (category) =>
+                updateParsed({ category })
+              )}
 
               <View style={styles.previewRow}>
                 <Text style={styles.previewLabel}>Compte</Text>
@@ -456,19 +492,7 @@ export default function AddTransactionScreen() {
                 </View>
               </View>
 
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Espace</Text>
-                <View style={styles.ownerBadge}>
-                  {parsed.owner === 'personal' ? (
-                    <User size={12} color={getOwnerInfo(parsed.owner).color} />
-                  ) : (
-                    <Building2 size={12} color={getOwnerInfo(parsed.owner).color} />
-                  )}
-                  <Text style={[styles.ownerText, { color: getOwnerInfo(parsed.owner).color }]}>
-                    {getOwnerInfo(parsed.owner).label}
-                  </Text>
-                </View>
-              </View>
+              {renderOwnerSelector(parsed.owner, (owner) => updateParsed({ owner }))}
 
               {parsed.description && (
                 <View style={styles.previewRow}>
@@ -477,18 +501,7 @@ export default function AddTransactionScreen() {
                 </View>
               )}
             </View>
-            <TouchableOpacity
-              style={styles.editDetailsButton}
-              onPress={() => {
-                setEditedParsed({ ...parsed });
-                setShowConfirmModal(true);
-              }}
-            >
-              <Text style={styles.editDetailsButtonText}>
-                Modifier type, catégorie, compte ou espace
-              </Text>
-            </TouchableOpacity>
-              {renderAccountSelector(parsed, setParsed)}
+            {renderAccountSelector(parsed, setParsed)}
           </Animated.View>
         )}
 
@@ -547,76 +560,19 @@ export default function AddTransactionScreen() {
                 <Text style={styles.confirmAmount}>{formatCurrency(editedParsed.amount)}</Text>
               </View>
 
-              <View style={styles.confirmSection}>
-                <Text style={styles.confirmLabel}>Type</Text>
-                <View style={styles.confirmOptions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.confirmOption,
-                      editedParsed.type === 'expense' && styles.confirmOptionActive,
-                    ]}
-                    onPress={() => setEditedParsed({ ...editedParsed, type: 'expense' })}
-                  >
-                    <Text style={[styles.confirmOptionText, editedParsed.type === 'expense' && styles.confirmOptionTextActive]}>
-                      Dépense
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.confirmOption,
-                      editedParsed.type === 'income' && styles.confirmOptionActive,
-                    ]}
-                    onPress={() => setEditedParsed({ ...editedParsed, type: 'income' })}
-                  >
-                    <Text style={[styles.confirmOptionText, editedParsed.type === 'income' && styles.confirmOptionTextActive]}>
-                      Revenu
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.confirmSection}>
-                <Text style={styles.confirmLabel}>Catégorie</Text>
-                <View style={styles.confirmOptions}>
-                  {CATEGORY_KEYS.slice(0, 6).map((key) => (
-                    <TouchableOpacity
-                      key={key}
-                      style={[
-                        styles.confirmOptionSmall,
-                        editedParsed.category === key && { backgroundColor: CATEGORIES[key].color + '20', borderColor: CATEGORIES[key].color },
-                      ]}
-                      onPress={() => setEditedParsed({ ...editedParsed, category: key })}
-                    >
-                      <Text style={[styles.confirmOptionSmallText, editedParsed.category === key && { color: CATEGORIES[key].color }]}>
-                        {CATEGORIES[key].label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.confirmOptions}>
-                  {CATEGORY_KEYS.slice(6).map((key) => (
-                    <TouchableOpacity
-                      key={key}
-                      style={[
-                        styles.confirmOptionSmall,
-                        editedParsed.category === key && { backgroundColor: CATEGORIES[key].color + '20', borderColor: CATEGORIES[key].color },
-                      ]}
-                      onPress={() => setEditedParsed({ ...editedParsed, category: key })}
-                    >
-                      <Text style={[styles.confirmOptionSmallText, editedParsed.category === key && { color: CATEGORIES[key].color }]}>
-                        {CATEGORIES[key].label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+              {renderTypeSelector(editedParsed.type, (type) =>
+                setEditedParsed((current) => current ? { ...current, type } : current)
+              )}
+              {renderCategorySelector(editedParsed.category, (category) =>
+                setEditedParsed((current) => current ? { ...current, category } : current)
+              )}
 
               <View style={styles.confirmSection}>
                 {renderAccountSelector(editedParsed, setEditedParsed)}
               </View>
 
               {renderOwnerSelector(editedParsed.owner, (owner) =>
-                setEditedParsed({ ...editedParsed, owner })
+                setEditedParsed((current) => current ? { ...current, owner } : current)
               )}
 
               {error && (
@@ -772,34 +728,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#059669',
   },
-  typeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  typeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  categoryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  categoryText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#374151',
-  },
   accountBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -835,30 +763,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 4,
-  },
-  editDetailsButton: {
-    alignSelf: 'flex-start',
-    marginTop: 16,
-    marginBottom: 8,
-    paddingVertical: 8,
-  },
-  editDetailsButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#059669',
-  },
-  ownerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  ownerText: {
-    fontSize: 13,
-    fontWeight: '500',
   },
   descriptionText: {
     fontSize: 14,
